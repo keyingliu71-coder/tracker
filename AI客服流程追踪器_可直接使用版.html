@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI客服上线流程追踪</title>
+<style>
+  :root {
+    --bg: #F7F6F2;
+    --surface: #FFFFFF;
+    --surface2: #F2F1ED;
+    --border: #E5E4DE;
+    --border2: #D8D7D0;
+    --text: #1C1C1A;
+    --text2: #6B6A65;
+    --text3: #9E9D98;
+    --accent: #2D6A4F;
+    --accent-light: #E8F4EE;
+    --accent2: #1B4332;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* 加载中 */
+  #loadingScreen {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px; z-index: 999;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loadingScreen p { font-size: 14px; color: var(--text2); }
+
+  /* 首页 */
+  #homePage {
+    display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 40px 20px;
+  }
+  .home-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 48px 44px;
+    width: 100%; max-width: 460px; box-shadow: var(--shadow);
+  }
+  .home-logo {
+    width: 44px; height: 44px; background: var(--accent);
+    border-radius: 12px; display: flex; align-items: center;
+    justify-content: center; margin-bottom: 24px;
+  }
+  .home-logo svg { width: 22px; height: 22px; stroke: white; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .home-title { font-size: 24px; font-weight: 600; letter-spacing: -0.4px; margin-bottom: 6px; }
+  .home-sub { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 32px; }
+  .home-label { font-size: 11px; font-weight: 600; color: var(--text3); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 8px; }
+  .select-wrap { position: relative; margin-bottom: 10px; }
+  .select-wrap select {
+    width: 100%; padding: 12px 40px 12px 14px;
+    border: 1.5px solid var(--border2); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text);
+    font-size: 14px; font-family: inherit; appearance: none; cursor: pointer; outline: none;
+    transition: border-color .2s;
+  }
+  .select-wrap select:focus { border-color: var(--accent); }
+  .select-wrap::after {
+    content: ''; position: absolute; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    border: 5px solid transparent; border-top-color: var(--text3);
+    pointer-events: none; margin-top: 3px;
+  }
+  .btn-primary {
+    width: 100%; padding: 13px; background: var(--accent); color: white;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 500; font-family: inherit;
+    cursor: pointer; transition: background .2s; margin-top: 6px;
+  }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { background: var(--border2); cursor: not-allowed; }
+  .divider {
+    display: flex; align-items: center; gap: 10px;
+    margin: 18px 0; color: var(--text3); font-size: 12px;
+  }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .add-row { display: flex; gap: 8px; }
+  .add-row input {
+    flex: 1; padding: 10px 13px;
+    border: 1.5px solid var(--border2); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text);
+    font-size: 14px; font-family: inherit; outline: none;
+    transition: border-color .2s;
+  }
+  .add-row input:focus { border-color: var(--accent); }
+  .add-row input::placeholder { color: var(--text3); }
+  .btn-sec {
+    padding: 10px 16px; background: var(--surface2); color: var(--text);
+    border: 1.5px solid var(--border2); border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; font-family: inherit;
+    cursor: pointer; white-space: nowrap; transition: background .15s;
+  }
+  .btn-sec:hover { background: var(--border); }
+  .sync-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-top: 18px; font-size: 11px; color: var(--text3);
+    background: var(--surface2); border-radius: 20px;
+    padding: 4px 10px; width: 100%; justify-content: center;
+  }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #22C55E; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* 追踪页 */
+  #trackerPage { display: none; }
+  .tracker-header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-inner {
+    max-width: 1100px; margin: 0 auto; padding: 0 28px;
+    display: flex; align-items: center; gap: 16px; height: 58px;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 5px;
+    color: var(--text2); font-size: 13px; cursor: pointer;
+    padding: 5px 9px; border-radius: 6px; border: none;
+    background: none; font-family: inherit; transition: background .15s, color .15s;
+  }
+  .back-btn:hover { background: var(--surface2); color: var(--text); }
+  .back-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .hdivider { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; }
+  .client-name { font-size: 15px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .live-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; color: #15803D; background: #DCFCE7;
+    border-radius: 20px; padding: 3px 9px; flex-shrink: 0;
+  }
+  .live-dot { width: 5px; height: 5px; border-radius: 50%; background: #22C55E; animation: pulse 2s infinite; }
+  .progress-pill { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .progress-track { width: 110px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width .4s ease; }
+  .progress-txt { font-size: 12px; color: var(--text2); white-space: nowrap; min-width: 64px; }
+
+  /* 主内容 */
+  .main-content { max-width: 1100px; margin: 0 auto; padding: 36px 28px 80px; }
+  .phase-block { margin-bottom: 40px; }
+  .phase-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .phase-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .phase-label { font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; padding: 3px 12px; border-radius: 20px; }
+  .phase-prog { font-size: 12px; color: var(--text3); margin-left: auto; }
+  .table-head {
+    display: grid; grid-template-columns: 130px 190px 1fr 54px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border); margin-bottom: 10px;
+  }
+  .th { font-size: 11px; font-weight: 600; color: var(--text3); letter-spacing: .4px; text-transform: uppercase; padding: 0 16px; }
+  .th:last-child { text-align: center; }
+  .task-grid { display: flex; flex-direction: column; gap: 7px; }
+  .task-row {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); display: grid;
+    grid-template-columns: 130px 190px 1fr 54px;
+    align-items: start; transition: border-color .2s, opacity .3s, background .2s;
+    overflow: hidden;
+  }
+  .task-row:hover { border-color: var(--border2); }
+  .task-row.done { opacity: .6; background: #FAFAF8; }
+  .task-row.done .t-item { text-decoration: line-through; color: var(--text3); }
+  .task-cell { padding: 14px 16px; font-size: 13px; line-height: 1.55; border-right: 1px solid var(--border); }
+  .task-cell:last-child { border-right: none; }
+  .t-mod { color: var(--text3); font-size: 11.5px; white-space: pre-wrap; }
+  .t-item { font-weight: 500; white-space: pre-wrap; }
+  .t-note { color: var(--text2); font-size: 12px; line-height: 1.7; white-space: pre-wrap; }
+  .t-note a { color: var(--accent); text-decoration: none; }
+  .t-note a:hover { text-decoration: underline; }
+  .t-check { display: flex; align-items: center; justify-content: center; padding: 14px; }
+  .chk-box {
+    width: 22px; height: 22px; border: 2px solid var(--border2); border-radius: 6px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all .2s; background: var(--surface); flex-shrink: 0;
+  }
+  .chk-box:hover { border-color: var(--accent); }
+  .chk-box.on { background: var(--accent); border-color: var(--accent); }
+  .chk-box svg { width: 13px; height: 13px; stroke: white; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transform: scale(.5); transition: opacity .15s, transform .15s; }
+  .chk-box.on svg { opacity: 1; transform: scale(1); }
+
+  .done-banner {
+    display: none; background: var(--accent-light); border: 1px solid #B7DFCA;
+    border-radius: var(--radius); padding: 14px 20px; margin-bottom: 28px;
+    align-items: center; gap: 10px; font-size: 13px; color: var(--accent2); font-weight: 500;
+  }
+  .danger-zone {
+    margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .danger-info { font-size: 12px; color: var(--text3); }
+  .btn-danger {
+    padding: 7px 14px; background: none; color: #DC2626;
+    border: 1px solid #FCA5A5; border-radius: var(--radius-sm);
+    font-size: 12px; font-family: inherit; cursor: pointer; transition: background .15s;
+  }
+  .btn-danger:hover { background: #FEF2F2; }
+
+  @media (max-width: 680px) {
+    .task-row { grid-template-columns: 1fr 54px; }
+    .table-head { grid-template-columns: 1fr 54px; }
+    .t-mod { display: none; }
+    .task-cell { border-right: none; padding: 11px 14px; }
+    .header-inner { padding: 0 14px; }
+    .main-content { padding: 20px 14px 60px; }
+    .home-card { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <p>正在连接数据库…</p>
+</div>
+
+<div id="homePage">
+  <div class="home-card">
+    <div class="home-logo">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <h1 class="home-title">AI客服上线流程追踪</h1>
+    <p class="home-sub">多人实时同步 · 为每个客户独立追踪上线进度</p>
+
+    <div class="home-label">选择已有客户 / 空间</div>
+    <div class="select-wrap">
+      <select id="clientSelect"><option value="">加载中…</option></select>
+    </div>
+    <button class="btn-primary" id="enterBtn" onclick="enterClient()" disabled>进入追踪 →</button>
+
+    <div class="divider">或新建客户</div>
+    <div class="add-row">
+      <input type="text" id="newClientInput" placeholder="输入客户名称或空间名…" onkeydown="if(event.key==='Enter') addAndEnter()">
+      <button class="btn-sec" onclick="addAndEnter()">新建并进入</button>
+    </div>
+
+    <div class="sync-badge">
+      <span class="sync-dot"></span>
+      已连接 Firebase · 所有操作实时同步至云端
+    </div>
+  </div>
+</div>
+
+<div id="trackerPage">
+  <header class="tracker-header">
+    <div class="header-inner">
+      <button class="back-btn" onclick="goHome()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        全部客户
+      </button>
+      <div class="hdivider"></div>
+      <span class="client-name" id="hClientName"></span>
+      <div class="live-badge"><span class="live-dot"></span>实时同步</div>
+      <div class="progress-pill">
+        <div class="progress-track"><div class="progress-fill" id="hProgressBar" style="width:0%"></div></div>
+        <span class="progress-txt" id="hProgressTxt">0 / 0</span>
+      </div>
+    </div>
+  </header>
+  <div class="main-content">
+    <div class="done-banner" id="doneBanner">🎉 所有事项已完成，该客户已准备就绪！</div>
+    <div id="phasesContainer"></div>
+    <div class="danger-zone">
+      <span class="danger-info">删除该客户的所有进度记录（所有人可见，不可恢复）</span>
+      <button class="btn-danger" onclick="deleteClient()">删除此客户</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+<script>
+// ══════ 你的 Firebase 配置（已填入） ══════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBFM-_WEuuMtaIVc4k23Kkm8O_e9z3jqjQ",
+  authDomain: "betteryeah-ai-tracker.firebaseapp.com",
+  databaseURL: "https://betteryeah-ai-tracker-default-rtdb.firebaseio.com",
+  projectId: "betteryeah-ai-tracker",
+  storageBucket: "betteryeah-ai-tracker.firebasestorage.app",
+  messagingSenderId: "474782392351",
+  appId: "1:474782392351:web:a175b5656467cb76d9b52a",
+  measurementId: "G-THD1N1Y58Z"
+};
+
+// ══════ 任务数据 ══════
+const PHASES = [
+  {
+    id: 'p1', label: '第一阶段', dotColor: '#40916C', bgColor: '#E8F4EE', textColor: '#1B4332',
+    tasks: [
+      { module: '知识模块', item: 'SOP-1.0 确认',
+        note: `客户请结合业务实际情况针对 SOP 文件进行 check，确认后回传 excel。
+
+【注意事项】
+1、check 人员必须是客服业务专家人员
+2、SOP 内容如有与现实业务冲突处，业务老师可以直接增删改
+3、SOP 二级意图名称并非固定，业务老师可根据自身业务进行修改` },
+      { module: '知识模块', item: '商品补充知识\n（详情页中未提及知识）',
+        note: `1. 现成表格形式资料（区分 SPU / SKU 级别）：
+   问答QA：问题 | 答案 | spuid  或  问题 | 答案 | skuid
+   参数信息：参数 | spuid  或  参数 | skuid
+   图片和视频资料请准备链接形式。
+
+2. 文档型资料（pdf/word/ppt/excel/视频/图片）：
+   需与商品 ID 或 SKU ID 有对应映射关系。
+
+3. 特别情况：
+   若文件与商品之间无映射关系，业务老师需人工整理，描述文件适用的产品特征关键词。` },
+      { module: '知识模块', item: '店铺补充知识\n（店铺级/品类级）',
+        note: `说明：聊天记录中已提取了部分 FAQ 作为店铺知识 1.0，但仍有不完整的可能性。
+
+• 内部若有沉淀的 FAQ 或快捷短语，可直接按照模板上传
+• 非 FAQ 格式文件（pdf/word/ppt/excel）则直接同步文件内容` },
+      { module: '知识模块', item: '主推款 ID 及标签确认',
+        note: `1. 主推款 ID 商品：SPUID 即可
+2. 商品专属标签 + SPUID，格式：标签 | ID
+   例：油皮 | xxxxxxxxxxx` },
+      { module: '个性化模块', item: '一般咨询', note: '接待要求，特别注意事项，全局转人工条件' },
+      { module: '个性化模块', item: '接待配置', note: '转人工话术设置，AI 工作时间设置，转人工组设置' },
+      { module: '个性化模块', item: '促单成交', note: '促单话术设置' },
+      { module: '个性化模块', item: '满意度邀评', note: '按照标准开启即可' },
+      { module: '个性化模块', item: '禁用语', note: '违禁词配置' },
+      { module: '高级工具开启\n（主账号授权）', item: '商品自动更新', note: '商品详情页知识自动更新' },
+      { module: '高级工具开启\n（主账号授权）', item: '订单状态获取', note: '订单号 / 状态 / 时间 / 发货时间 / 创建时间及对应商品 id / sku_id' }
+    ]
+  },
+  {
+    id: 'p2', label: '第二阶段（测试调优）', dotColor: '#3B5BDB', bgColor: '#EEF2FF', textColor: '#1e3a8a',
+    tasks: [
+      { module: '测试阶段', item: '测试集批量测试', note: '基于重点意图，从聊天记录中提取用户原声，进行批量测试' },
+      { module: '测试阶段', item: '问题标注与修复',
+        note: `针对批量测试未通过意图进行修复；业务老师需对不通过的问题进行标注。
+
+注意：在知识无缺失的情况下，标注逻辑优先考虑通用性和思维逻辑性，目标旨在优化 SOP，禁止陷入打补丁加 QA 的逻辑。` },
+      { module: '测试阶段', item: 'SOP 优化', note: '过程中会涉及此前 1.0-SOP 没有涉及的细节分支，在修复问题时同步优化修复 SOP' }
+    ]
+  },
+  {
+    id: 'p3', label: '第三阶段（上线 & 优化）', dotColor: '#D97706', bgColor: '#FFF8E1', textColor: '#78350F',
+    tasks: [
+      { module: '上线阶段', item: '接待账号与配置准备\n（需认证）',
+        note: `详情参考：https://xq5s55765m8.feishu.cn/wiki/IYCcwLzH5izHb0kiyNicCjDZnDf
+
+重点关注：分流，及转人工组（组名必须与千牛后台名称保持一致）` },
+      { module: '上线阶段', item: '上线接待（7天）', note: '数据分析报告输出，明确当前 AI 不足点，明确优化方向' },
+      { module: '上线阶段', item: '持续优化迭代', note: '业务方需安排一位同学学习如何训练优化 AI 客服' }
+    ]
+  }
+];
+
+const TOTAL = PHASES.reduce((s, p) => s + p.tasks.length, 0);
+
+// ══════ Firebase 逻辑 ══════
+let db, clientsRef, stateRef, stateListener;
+let currentClient = '';
+
+window.addEventListener('load', () => {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.database();
+  clientsRef = db.ref('clients');
+  initHome();
+});
+
+function initHome() {
+  clientsRef.on('value', snap => {
+    const data = snap.val() || {};
+    const names = Object.keys(data).sort();
+    const sel = document.getElementById('clientSelect');
+    const prev = sel.value;
+    if (!names.length) {
+      sel.innerHTML = '<option value="">（暂无客户，请新建）</option>';
+      document.getElementById('enterBtn').disabled = true;
+    } else {
+      sel.innerHTML = names.map(n => `<option value="${n}"${n===prev?' selected':''}>${n}</option>`).join('');
+      document.getElementById('enterBtn').disabled = false;
+    }
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('homePage').style.display = 'flex';
+  }, err => {
+    document.getElementById('loadingScreen').querySelector('p').textContent = '连接失败：' + err.message;
+  });
+}
+
+function sanitizeKey(name) {
+  return name.replace(/[.#$\/\[\]]/g, '_');
+}
+
+function enterClient(name) {
+  if (!name) name = document.getElementById('clientSelect').value;
+  if (!name) { alert('请先选择或新建一个客户'); return; }
+  currentClient = name;
+  showTracker();
+}
+
+function addAndEnter() {
+  const input = document.getElementById('newClientInput');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  input.value = '';
+  clientsRef.child(sanitizeKey(name)).set({ name, createdAt: Date.now() })
+    .then(() => enterClient(name))
+    .catch(e => alert('创建失败：' + e.message));
+}
+
+function goHome() {
+  if (stateListener && stateRef) { stateRef.off('value', stateListener); stateListener = null; }
+  currentClient = '';
+  document.getElementById('trackerPage').style.display = 'none';
+  document.getElementById('homePage').style.display = 'flex';
+}
+
+function showTracker() {
+  document.getElementById('homePage').style.display = 'none';
+  document.getElementById('trackerPage').style.display = 'block';
+  document.getElementById('hClientName').textContent = currentClient;
+  renderPhases();
+  stateRef = db.ref('state/' + sanitizeKey(currentClient));
+  stateListener = stateRef.on('value', snap => {
+    applyState(snap.val() || {});
+  });
+}
+
+function renderPhases() {
+  const container = document.getElementById('phasesContainer');
+  container.innerHTML = '';
+  PHASES.forEach((phase, pi) => {
+    const block = document.createElement('div');
+    block.className = 'phase-block';
+    block.innerHTML = `
+      <div class="phase-header">
+        <div class="phase-dot" style="background:${phase.dotColor}"></div>
+        <span class="phase-label" style="background:${phase.bgColor};color:${phase.textColor}">${phase.label}</span>
+        <span class="phase-prog" id="pp-${pi}"></span>
+      </div>
+      <div class="table-head">
+        <div class="th">模块</div><div class="th">事项</div>
+        <div class="th">注意事项</div><div class="th">完成</div>
+      </div>
+      <div class="task-grid" id="tg-${pi}"></div>`;
+    container.appendChild(block);
+
+    const grid = block.querySelector(`#tg-${pi}`);
+    phase.tasks.forEach((task, ti) => {
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      row.id = `row-${pi}-${ti}`;
+      const note = task.note.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+      row.innerHTML = `
+        <div class="task-cell t-mod">${task.module}</div>
+        <div class="task-cell t-item">${task.item}</div>
+        <div class="task-cell t-note">${note}</div>
+        <div class="task-cell t-check">
+          <div class="chk-box" id="chk-${pi}-${ti}" onclick="toggleTask(${pi},${ti})">
+            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        </div>`;
+      grid.appendChild(row);
+    });
+  });
+}
+
+function applyState(data) {
+  let total = 0;
+  PHASES.forEach((phase, pi) => {
+    let phaseCount = 0;
+    phase.tasks.forEach((_, ti) => {
+      const done = !!(data[`${pi}_${ti}`]);
+      const row = document.getElementById(`row-${pi}-${ti}`);
+      const box = document.getElementById(`chk-${pi}-${ti}`);
+      if (row) row.classList.toggle('done', done);
+      if (box) box.classList.toggle('on', done);
+      if (done) { total++; phaseCount++; }
+    });
+    const pp = document.getElementById(`pp-${pi}`);
+    if (pp) pp.textContent = `${phaseCount} / ${phase.tasks.length}`;
+  });
+  const pct = Math.round(total / TOTAL * 100);
+  document.getElementById('hProgressBar').style.width = pct + '%';
+  document.getElementById('hProgressTxt').textContent = `${total} / ${TOTAL} 完成`;
+  document.getElementById('doneBanner').style.display = total === TOTAL ? 'flex' : 'none';
+}
+
+function toggleTask(pi, ti) {
+  const ref = db.ref('state/' + sanitizeKey(currentClient) + '/' + pi + '_' + ti);
+  ref.once('value').then(snap => ref.set(!snap.val()));
+}
+
+function deleteClient() {
+  if (!confirm(`确认删除「${currentClient}」的所有数据？\n此操作对所有人可见，且不可恢复。`)) return;
+  const key = sanitizeKey(currentClient);
+  Promise.all([
+    clientsRef.child(key).remove(),
+    db.ref('state/' + key).remove()
+  ]).then(() => goHome()).catch(e => alert('删除失败：' + e.message));
+}
+</script>
+</body>
+</html>
