@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI客服上线流程追踪</title>
+<style>
+:root {
+  --bg: #F7F6F2; --surface: #fff; --surface2: #F2F1ED;
+  --border: #E5E4DE; --border2: #D8D7D0;
+  --text: #1C1C1A; --text2: #6B6A65; --text3: #9E9D98;
+  --accent: #2D6A4F; --accent2: #1B4332; --accent-light: #E8F4EE;
+  --radius: 12px; --radius-sm: 8px;
+  --shadow: 0 2px 12px rgba(0,0,0,0.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── 通用 ── */
+.hidden{display:none!important}
+.btn{padding:9px 18px;border-radius:var(--radius-sm);font-size:13px;font-family:inherit;cursor:pointer;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);transition:background .15s}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:var(--accent2)}
+.btn.danger{color:#DC2626;border-color:#FCA5A5}
+.btn.danger:hover{background:#FEF2F2}
+.btn.sm{padding:5px 12px;font-size:12px}
+input,textarea,select{font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);border:1.5px solid var(--border2);border-radius:var(--radius-sm);outline:none;transition:border-color .2s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+input::placeholder,textarea::placeholder{color:var(--text3)}
+
+/* ── 加载 ── */
+#loadingScreen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:999}
+.spinner{width:34px;height:34px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loadingScreen p{font-size:13px;color:var(--text2)}
+
+/* ── 登录页 ── */
+#loginPage{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:40px 20px}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:44px 40px;width:100%;max-width:420px;box-shadow:var(--shadow)}
+.logo-block{width:42px;height:42px;background:var(--accent);border-radius:11px;display:flex;align-items:center;justify-content:center;margin-bottom:22px}
+.logo-block svg{width:21px;height:21px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.login-title{font-size:22px;font-weight:600;letter-spacing:-.3px;margin-bottom:6px}
+.login-sub{font-size:13px;color:var(--text2);margin-bottom:28px;line-height:1.6}
+.tab-row{display:flex;gap:0;margin-bottom:24px;border:1.5px solid var(--border2);border-radius:var(--radius-sm);overflow:hidden}
+.tab-btn{flex:1;padding:9px;font-size:13px;font-family:inherit;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--text2);transition:all .2s}
+.tab-btn.active{background:var(--accent);color:#fff}
+.field-label{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;display:block}
+.field-wrap{margin-bottom:14px}
+.field-wrap input{width:100%;padding:11px 13px}
+.login-hint{font-size:12px;color:var(--text3);margin-top:16px;text-align:center;line-height:1.6}
+.err-msg{font-size:12px;color:#DC2626;margin-top:8px;display:none}
+
+/* ── 内部首页 ── */
+#adminHome{display:none}
+.page-header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.page-header-inner{max-width:1100px;margin:0 auto;padding:0 28px;display:flex;align-items:center;gap:14px;height:56px}
+.page-header-inner h1{font-size:15px;font-weight:600;flex:1}
+.live-pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#15803D;background:#DCFCE7;border-radius:20px;padding:3px 9px}
+.live-dot{width:5px;height:5px;border-radius:50%;background:#22C55E;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.admin-content{max-width:1100px;margin:0 auto;padding:32px 28px}
+.section-title{font-size:12px;font-weight:600;color:var(--text3);letter-spacing:.7px;text-transform:uppercase;margin-bottom:14px}
+.client-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:32px}
+.client-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px 18px;cursor:pointer;transition:border-color .2s,box-shadow .2s;position:relative}
+.client-card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.client-card-name{font-size:14px;font-weight:600;margin-bottom:6px}
+.client-card-prog{font-size:12px;color:var(--text3);margin-bottom:10px}
+.mini-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.mini-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s}
+.client-card-actions{display:flex;gap:6px;margin-top:12px}
+.copy-link-btn{font-size:11px;padding:4px 10px;color:var(--accent);border-color:#B7DFCA;background:var(--accent-light)}
+.copy-link-btn:hover{background:#d1ead9}
+.new-client-row{display:flex;gap:10px;margin-bottom:12px}
+.new-client-row input{flex:1;padding:10px 13px}
+.logout-btn{font-size:12px;color:var(--text3);border:none;background:none;cursor:pointer;padding:4px 8px;border-radius:6px}
+.logout-btn:hover{background:var(--surface2);color:var(--text)}
+
+/* ── 追踪页 ── */
+#trackerPage{display:none}
+.tracker-header{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+.tracker-header-inner{max-width:1100px;margin:0 auto;padding:0 28px;display:flex;align-items:center;gap:14px;height:56px}
+.back-btn{display:flex;align-items:center;gap:5px;color:var(--text2);font-size:13px;cursor:pointer;padding:5px 9px;border-radius:6px;border:none;background:none;font-family:inherit;transition:background .15s}
+.back-btn:hover{background:var(--surface2);color:var(--text)}
+.back-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.hdivider{width:1px;height:18px;background:var(--border);flex-shrink:0}
+.hclient{font-size:15px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.client-mode-badge{font-size:11px;padding:3px 10px;border-radius:20px;flex-shrink:0}
+.badge-admin{background:#EEF2FF;color:#3730A3}
+.badge-client{background:#FFF8E1;color:#92400E}
+.prog-pill{display:flex;align-items:center;gap:9px;flex-shrink:0}
+.prog-track{width:100px;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .4s}
+.prog-txt{font-size:12px;color:var(--text2);white-space:nowrap}
+.main-content{max-width:1100px;margin:0 auto;padding:32px 28px 80px}
+.done-banner{display:none;background:var(--accent-light);border:1px solid #B7DFCA;border-radius:var(--radius);padding:13px 18px;margin-bottom:24px;align-items:center;gap:9px;font-size:13px;color:var(--accent2);font-weight:500}
+
+/* ── 阶段 & 任务 ── */
+.phase-block{margin-bottom:36px}
+.phase-hdr{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.phase-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.phase-lbl{font-size:11px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;padding:3px 11px;border-radius:20px}
+.phase-cnt{font-size:12px;color:var(--text3);margin-left:auto}
+.tbl-head{display:grid;grid-template-columns:120px 170px 1fr 80px 54px;padding-bottom:7px;border-bottom:1px solid var(--border);margin-bottom:9px}
+.tbl-head.client-mode{grid-template-columns:120px 170px 1fr 54px}
+.th{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.3px;text-transform:uppercase;padding:0 14px}
+.th:last-child{text-align:center}
+.task-grid{display:flex;flex-direction:column;gap:6px}
+.task-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:border-color .2s,opacity .3s}
+.task-row:hover{border-color:var(--border2)}
+.task-row.done{opacity:.58;background:#FAFAF8}
+.task-row.done .t-item{text-decoration:line-through;color:var(--text3)}
+.task-main{display:grid;grid-template-columns:120px 170px 1fr 80px 54px;align-items:start}
+.task-main.client-mode{grid-template-columns:120px 170px 1fr 54px}
+.task-cell{padding:13px 14px;font-size:13px;line-height:1.55;border-right:1px solid var(--border)}
+.task-cell:last-child{border-right:none}
+.t-mod{color:var(--text3);font-size:11.5px;white-space:pre-wrap}
+.t-item{font-weight:500;white-space:pre-wrap}
+.t-note{color:var(--text2);font-size:12px;line-height:1.7;white-space:pre-wrap}
+.t-note a{color:var(--accent);text-decoration:none}
+.t-note a:hover{text-decoration:underline}
+.t-check{display:flex;align-items:center;justify-content:center;padding:13px}
+.chk-box{width:21px;height:21px;border:2px solid var(--border2);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;background:var(--surface);flex-shrink:0}
+.chk-box:hover{border-color:var(--accent)}
+.chk-box.on{background:var(--accent);border-color:var(--accent)}
+.chk-box.disabled{cursor:not-allowed;opacity:.45}
+.chk-box.disabled:hover{border-color:var(--border2)}
+.chk-box svg{width:12px;height:12px;stroke:#fff;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;opacity:0;transform:scale(.5);transition:opacity .15s,transform .15s}
+.chk-box.on svg{opacity:1;transform:scale(1)}
+
+/* ── 备注/图片列（仅内部） ── */
+.t-media{padding:10px 14px;display:flex;flex-direction:column;gap:7px}
+.img-list{display:flex;flex-wrap:wrap;gap:6px}
+.img-thumb{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;transition:opacity .2s}
+.img-thumb:hover{opacity:.8}
+.upload-btn-wrap{position:relative;display:inline-block}
+.upload-btn-wrap input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.img-add-btn{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:4px 10px;color:var(--text2);border:1px dashed var(--border2);border-radius:6px;background:none;cursor:pointer;white-space:nowrap}
+.img-add-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── 评论区 ── */
+.comment-section{border-top:1px solid var(--border);background:#FAFAF8;padding:12px 16px}
+.comment-toggle{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none;width:100%;background:none;border:none;font-family:inherit;padding:0;text-align:left}
+.comment-toggle svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.comment-toggle.open svg{transform:rotate(180deg)}
+.comment-body{margin-top:10px}
+.comment-list{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.comment-item{display:flex;flex-direction:column;gap:3px}
+.comment-meta{display:flex;align-items:center;gap:7px}
+.comment-author-badge{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600}
+.badge-internal{background:#EEF2FF;color:#3730A3}
+.badge-customer{background:#FFF8E1;color:#92400E}
+.comment-time{font-size:11px;color:var(--text3)}
+.comment-text{font-size:12.5px;color:var(--text);line-height:1.6;padding-left:2px}
+.comment-input-row{display:flex;gap:7px;align-items:flex-end}
+.comment-input-row textarea{flex:1;padding:8px 11px;font-size:13px;resize:none;border-radius:var(--radius-sm);min-height:36px;line-height:1.5}
+.comment-send-btn{padding:8px 14px;font-size:12px;white-space:nowrap;flex-shrink:0}
+.no-comments{font-size:12px;color:var(--text3);font-style:italic}
+
+/* ── 图片灯箱 ── */
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:1000;cursor:zoom-out}
+#lightbox img{max-width:90vw;max-height:88vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+#lightbox-close{position:absolute;top:20px;right:24px;color:#fff;font-size:24px;cursor:pointer;line-height:1}
+
+/* ── 危险区 ── */
+.danger-zone{margin-top:52px;padding-top:18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.danger-info{font-size:12px;color:var(--text3)}
+
+@media(max-width:680px){
+  .task-main,.tbl-head{grid-template-columns:1fr 54px!important}
+  .t-mod,.t-media{display:none}
+  .task-cell{border-right:none;padding:10px 12px}
+  .tracker-header-inner,.admin-content,.main-content,.page-header-inner{padding-left:14px;padding-right:14px}
+  .login-card{padding:32px 22px}
+}
+</style>
+</head>
+<body>
+
+<!-- 加载 -->
+<div id="loadingScreen"><div class="spinner"></div><p>正在连接数据库…</p></div>
+
+<!-- 登录页 -->
+<div id="loginPage">
+  <div class="login-card">
+    <div class="logo-block">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <h1 class="login-title">AI客服上线流程追踪</h1>
+    <p class="login-sub">请选择登录方式</p>
+    <div class="tab-row">
+      <button class="tab-btn active" id="tabAdmin" onclick="switchTab('admin')">内部人员</button>
+      <button class="tab-btn" id="tabClient" onclick="switchTab('client')">我是客户</button>
+    </div>
+
+    <!-- 内部登录 -->
+    <div id="adminLoginForm">
+      <div class="field-wrap">
+        <label class="field-label">账号</label>
+        <input type="text" id="adminUser" placeholder="输入账号" value="admin">
+      </div>
+      <div class="field-wrap">
+        <label class="field-label">密码</label>
+        <input type="password" id="adminPass" placeholder="输入密码" onkeydown="if(event.key==='Enter')doAdminLogin()">
+      </div>
+      <div class="err-msg" id="adminErr">账号或密码错误</div>
+      <button class="btn primary" style="width:100%;margin-top:8px" onclick="doAdminLogin()">登录进入管理端 →</button>
+    </div>
+
+    <!-- 客户登录 -->
+    <div id="clientLoginForm" class="hidden">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.7">
+        请使用您的专属链接进入，或联系您的对接人获取链接。<br>
+        如您已有专属链接，直接点击链接即可，无需手动登录。
+      </p>
+      <div class="err-msg" id="clientErr" style="display:block;color:var(--text2)">请联系内部人员获取您的专属访问链接</div>
+    </div>
+
+    <p class="login-hint" id="loginHint">内部人员统一账号密码登录</p>
+  </div>
+</div>
+
+<!-- 内部管理首页 -->
+<div id="adminHome">
+  <div class="page-header">
+    <div class="page-header-inner">
+      <h1>AI客服上线流程追踪</h1>
+      <div class="live-pill"><span class="live-dot"></span>实时同步</div>
+      <button class="logout-btn" onclick="doLogout()">退出登录</button>
+    </div>
+  </div>
+  <div class="admin-content">
+    <div class="section-title">新建客户空间</div>
+    <div class="new-client-row">
+      <input type="text" id="newClientName" placeholder="输入客户名称或空间名…" onkeydown="if(event.key==='Enter')createClient()">
+      <button class="btn primary" onclick="createClient()">新建空间</button>
+    </div>
+    <div class="section-title" style="margin-top:8px">所有客户空间</div>
+    <div class="client-grid" id="clientGrid"></div>
+  </div>
+</div>
+
+<!-- 追踪页（内部+客户共用，权限不同） -->
+<div id="trackerPage">
+  <header class="tracker-header">
+    <div class="tracker-header-inner">
+      <button class="back-btn" id="backBtn" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        <span id="backLabel">返回</span>
+      </button>
+      <div class="hdivider"></div>
+      <span class="hclient" id="hClientName"></span>
+      <span class="client-mode-badge" id="modeBadge"></span>
+      <div class="prog-pill">
+        <div class="prog-track"><div class="prog-fill" id="hProgBar" style="width:0%"></div></div>
+        <span class="prog-txt" id="hProgTxt">0 / 0</span>
+      </div>
+    </div>
+  </header>
+  <div class="main-content">
+    <div class="done-banner" id="doneBanner">🎉 所有事项已完成，该客户已准备就绪！</div>
+    <div id="phasesContainer"></div>
+    <div class="danger-zone" id="dangerZone">
+      <span class="danger-info">删除该客户的所有数据（不可恢复）</span>
+      <button class="btn danger sm" onclick="deleteClient()">删除此客户</button>
+    </div>
+  </div>
+</div>
+
+<!-- 图片灯箱 -->
+<div id="lightbox" onclick="closeLightbox()">
+  <span id="lightbox-close">✕</span>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
+<script>
+// ═══════════════════════════════════════
+// 配置
+// ═══════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBFM-_WEuuMtaIVc4k23Kkm8O_e9z3jqjQ",
+  authDomain: "betteryeah-ai-tracker.firebaseapp.com",
+  databaseURL: "https://betteryeah-ai-tracker-default-rtdb.firebaseio.com",
+  projectId: "betteryeah-ai-tracker",
+  storageBucket: "betteryeah-ai-tracker.firebasestorage.app",
+  messagingSenderId: "474782392351",
+  appId: "1:474782392351:web:a175b5656467cb76d9b52a"
+};
+
+// ★ 内部账号密码（可直接修改）
+const ADMIN_CREDENTIALS = { user: 'admin', pass: 'betteryeah2024' };
+
+// ═══════════════════════════════════════
+// 任务数据（新版Excel）
+// ═══════════════════════════════════════
+const PHASES = [
+  {
+    id:'p1', label:'第一阶段：构建', dotColor:'#40916C', bgColor:'#E8F4EE', textColor:'#1B4332',
+    tasks:[
+      {module:'知识模块', item:'SOP-1.0 确认',
+       note:`客户请结合业务实际情况针对 SOP 文件进行 check，确认后回传 excel。\n\n【注意事项】\n1、check 人员必须是客服业务专家人员\n2、SOP 内容如有与现实业务冲突处，业务老师可以直接增删改\n3、SOP 二级意图名称并非固定，业务老师可根据自身业务进行修改`},
+      {module:'知识模块', item:'商品补充知识\n（详情页中未提及知识）',
+       note:`1. 现成表格形式资料（区分 SPU / SKU 级别）：\n   问答QA：问题｜答案｜spuid  或  问题｜答案｜skuid\n   参数信息：参数｜spuid  或  参数｜skuid\n   图片和视频资料请准备链接形式。\n\n2. 文档型资料（pdf/word/ppt/excel/视频/图片）：\n   需与商品 ID 或 SKU ID 有对应映射关系。\n\n3. 特别情况：若文件与商品之间无映射关系，业务老师需人工整理，描述文件适用的产品特征关键词。`},
+      {module:'知识模块', item:'店铺补充知识\n（店铺级/品类级）',
+       note:`说明：聊天记录中已提取了部分 FAQ 作为店铺知识 1.0，但仍有不完整的可能性。\n\n• 内部若有沉淀的 FAQ 或快捷短语，可直接按照模板上传\n• 非 FAQ 格式文件（pdf/word/ppt/excel）则直接同步文件内容`},
+      {module:'知识模块', item:'主推款 ID 及标签确认',
+       note:`1. 主推款 ID 商品：SPUID 即可\n2. 商品专属标签 + SPUID，格式：标签｜ID\n   例：油皮｜xxxxxxxxxxx`},
+      {module:'个性化模块', item:'一般咨询', note:'接待要求，特别注意事项，全局转人工条件'},
+      {module:'个性化模块', item:'接待配置', note:'转人工话术设置，AI 工作时间设置，转人工组设置'},
+      {module:'个性化模块', item:'促单成交', note:'促单话术设置'},
+      {module:'个性化模块', item:'满意度邀评', note:'按照标准开启即可'},
+      {module:'个性化模块', item:'禁用语', note:'违禁词配置'},
+      {module:'高级工具开启\n（主账号授权）', item:'商品自动更新', note:'商品详情页知识自动更新'},
+      {module:'高级工具开启\n（主账号授权）', item:'订单状态获取', note:'订单号 / 状态 / 时间 / 发货时间 / 创建时间及对应商品 id / sku_id'}
+    ]
+  },
+  {
+    id:'p2', label:'第二阶段（测试 & 调优）', dotColor:'#3B5BDB', bgColor:'#EEF2FF', textColor:'#1e3a8a',
+    tasks:[
+      {module:'测试阶段', item:'测试集批量测试', note:'基于重点意图，从聊天记录中提取用户原声，进行批量测试'},
+      {module:'测试阶段', item:'问题标注与修复',
+       note:`针对批量测试未通过意图进行修复；业务老师需对不通过的问题进行标注。\n\n注意：在知识无缺失的情况下，标注逻辑优先考虑通用性和思维逻辑性，目标旨在优化 SOP，禁止陷入打补丁加 QA 的逻辑。`},
+      {module:'测试阶段', item:'SOP 优化', note:'过程中会涉及此前 1.0-SOP 没有涉及的细节分支，在修复问题时同步优化修复 SOP'}
+    ]
+  },
+  {
+    id:'p3', label:'第三阶段（上线 & 优化）', dotColor:'#D97706', bgColor:'#FFF8E1', textColor:'#78350F',
+    tasks:[
+      {module:'上线阶段', item:'接待账号与配置准备\n（需认证）',
+       note:`详情参考：https://xq5s55765m8.feishu.cn/wiki/IYCcwLzH5izHb0kiyNicCjDZnDf\n\n重点关注：分流，及转人工组（组名必须与千牛后台名称保持一致）`},
+      {module:'上线阶段', item:'上线接待（7天）', note:'数据分析报告输出，明确当前 AI 不足点，明确优化方向'},
+      {module:'上线阶段', item:'持续优化迭代', note:'业务方需安排一位同学学习如何训练优化 AI 客服，尤其是 SOP'}
+    ]
+  }
+];
+const TOTAL = PHASES.reduce((s,p)=>s+p.tasks.length,0);
+
+// ═══════════════════════════════════════
+// 状态
+// ═══════════════════════════════════════
+let db, storage, clientsRef;
+let currentMode = ''; // 'admin' | 'client'
+let currentClient = '';
+let currentToken = '';
+let stateRef, stateListener;
+
+// ═══════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════
+window.addEventListener('load', () => {
+  firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.database();
+  storage = firebase.storage();
+  clientsRef = db.ref('clients');
+
+  // 检查 URL 是否带有客户专属 token
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  const clientName = params.get('client');
+
+  if (token && clientName) {
+    // 客户专属链接进入
+    verifyClientToken(clientName, token);
+  } else {
+    hide('loadingScreen');
+    show('loginPage');
+  }
+});
+
+function verifyClientToken(name, token) {
+  db.ref('clients/' + sanitize(name) + '/token').once('value').then(snap => {
+    hide('loadingScreen');
+    if (snap.val() === token) {
+      currentMode = 'client';
+      currentClient = name;
+      currentToken = token;
+      showTracker();
+    } else {
+      show('loginPage');
+      document.getElementById('clientErr').textContent = '链接无效或已失效，请联系对接人重新获取';
+      switchTab('client');
+    }
+  });
+}
+
+// ═══════════════════════════════════════
+// 登录
+// ═══════════════════════════════════════
+function switchTab(tab) {
+  document.getElementById('tabAdmin').classList.toggle('active', tab==='admin');
+  document.getElementById('tabClient').classList.toggle('active', tab==='client');
+  toggle('adminLoginForm', tab==='admin');
+  toggle('clientLoginForm', tab==='client');
+  document.getElementById('loginHint').textContent = tab==='admin'
+    ? '内部人员统一账号密码登录' : '使用专属链接直接进入，无需密码';
+}
+
+function doAdminLogin() {
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value;
+  if (u === ADMIN_CREDENTIALS.user && p === ADMIN_CREDENTIALS.pass) {
+    hide('loginPage');
+    currentMode = 'admin';
+    showAdminHome();
+  } else {
+    document.getElementById('adminErr').style.display = 'block';
+  }
+}
+
+function doLogout() {
+  currentMode = ''; currentClient = '';
+  if (stateListener && stateRef) stateRef.off('value', stateListener);
+  hide('adminHome'); hide('trackerPage');
+  show('loginPage');
+  // 清除 URL 参数
+  history.replaceState({}, '', location.pathname);
+}
+
+// ═══════════════════════════════════════
+// 内部管理首页
+// ═══════════════════════════════════════
+function showAdminHome() {
+  show('adminHome');
+  clientsRef.on('value', snap => {
+    const data = snap.val() || {};
+    renderClientGrid(data);
+  });
+}
+
+function renderClientGrid(data) {
+  const grid = document.getElementById('clientGrid');
+  const names = Object.keys(data).sort();
+  if (!names.length) {
+    grid.innerHTML = '<p style="font-size:13px;color:var(--text3)">暂无客户，请新建空间</p>';
+    return;
+  }
+  grid.innerHTML = '';
+  names.forEach(key => {
+    const c = data[key];
+    // 获取进度
+    db.ref('state/' + key).once('value').then(snap => {
+      const st = snap.val() || {};
+      const done = Object.values(st).filter(Boolean).length;
+      const pct = Math.round(done / TOTAL * 100);
+      const card = document.createElement('div');
+      card.className = 'client-card';
+      card.innerHTML = `
+        <div class="client-card-name">${c.name}</div>
+        <div class="client-card-prog">${done} / ${TOTAL} 项完成 · ${pct}%</div>
+        <div class="mini-bar"><div class="mini-fill" style="width:${pct}%"></div></div>
+        <div class="client-card-actions">
+          <button class="btn sm" onclick="enterAsAdmin('${key}','${c.name}')">进入管理</button>
+          <button class="btn sm copy-link-btn" onclick="copyClientLink('${c.name}','${c.token}',this)">复制客户链接</button>
+        </div>`;
+      grid.appendChild(card);
+    });
+  });
+}
+
+function createClient() {
+  const input = document.getElementById('newClientName');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  const key = sanitize(name);
+  const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  clientsRef.child(key).set({ name, token, createdAt: Date.now() })
+    .then(() => { input.value = ''; })
+    .catch(e => alert('创建失败：' + e.message));
+}
+
+function copyClientLink(name, token, btn) {
+  const base = location.origin + location.pathname;
+  const link = `${base}?client=${encodeURIComponent(name)}&token=${token}`;
+  navigator.clipboard.writeText(link).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '已复制 ✓';
+    setTimeout(() => btn.textContent = orig, 2000);
+  });
+}
+
+function enterAsAdmin(key, name) {
+  currentClient = name;
+  showTracker();
+}
+
+// ═══════════════════════════════════════
+// 追踪页
+// ═══════════════════════════════════════
+function showTracker() {
+  hide('adminHome'); hide('loginPage');
+  show('trackerPage');
+  document.getElementById('hClientName').textContent = currentClient;
+
+  const isAdmin = currentMode === 'admin';
+  const badge = document.getElementById('modeBadge');
+  badge.textContent = isAdmin ? '内部管理端' : '客户视图';
+  badge.className = 'client-mode-badge ' + (isAdmin ? 'badge-admin' : 'badge-client');
+
+  document.getElementById('backLabel').textContent = isAdmin ? '所有客户' : '';
+  document.getElementById('backBtn').style.display = isAdmin ? 'flex' : 'none';
+  document.getElementById('dangerZone').style.display = isAdmin ? 'flex' : 'none';
+
+  renderPhases();
+
+  stateRef = db.ref('state/' + sanitize(currentClient));
+  stateListener = stateRef.on('value', snap => applyState(snap.val() || {}));
+}
+
+function goBack() {
+  if (stateListener && stateRef) stateRef.off('value', stateListener);
+  hide('trackerPage');
+  show('adminHome');
+}
+
+function renderPhases() {
+  const isAdmin = currentMode === 'admin';
+  const container = document.getElementById('phasesContainer');
+  container.innerHTML = '';
+
+  PHASES.forEach((phase, pi) => {
+    const block = document.createElement('div');
+    block.className = 'phase-block';
+    const modeClass = isAdmin ? '' : 'client-mode';
+    block.innerHTML = `
+      <div class="phase-hdr">
+        <div class="phase-dot" style="background:${phase.dotColor}"></div>
+        <span class="phase-lbl" style="background:${phase.bgColor};color:${phase.textColor}">${phase.label}</span>
+        <span class="phase-cnt" id="pp-${pi}"></span>
+      </div>
+      <div class="tbl-head ${modeClass}">
+        <div class="th">模块</div>
+        <div class="th">事项</div>
+        <div class="th">说明</div>
+        ${isAdmin ? '<div class="th">图片备注</div>' : ''}
+        <div class="th" style="text-align:center">完成</div>
+      </div>
+      <div class="task-grid" id="tg-${pi}"></div>`;
+    container.appendChild(block);
+
+    const grid = block.querySelector(`#tg-${pi}`);
+    phase.tasks.forEach((task, ti) => {
+      const row = document.createElement('div');
+      row.className = 'task-row';
+      row.id = `row-${pi}-${ti}`;
+      const note = task.note.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+      const mediaCol = isAdmin ? `
+        <div class="task-cell t-media" id="media-${pi}-${ti}">
+          <div class="img-list" id="imglist-${pi}-${ti}"></div>
+          <div class="upload-btn-wrap">
+            <span class="img-add-btn">＋ 上传图片</span>
+            <input type="file" accept="image/*" multiple onchange="uploadImages(${pi},${ti},this)">
+          </div>
+        </div>` : '';
+      row.innerHTML = `
+        <div class="task-main ${isAdmin?'':'client-mode'}">
+          <div class="task-cell t-mod">${task.module}</div>
+          <div class="task-cell t-item">${task.item}</div>
+          <div class="task-cell t-note">${note}</div>
+          ${mediaCol}
+          <div class="task-cell t-check">
+            <div class="chk-box ${isAdmin?'':'disabled'}" id="chk-${pi}-${ti}" ${isAdmin?`onclick="toggleTask(${pi},${ti})"`:''}>
+              <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="comment-section">
+          <button class="comment-toggle" id="ctoggle-${pi}-${ti}" onclick="toggleComments(${pi},${ti})">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span id="ctoggle-txt-${pi}-${ti}">查看评论</span>
+            <svg viewBox="0 0 24 24" style="margin-left:auto"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="comment-body hidden" id="cbody-${pi}-${ti}">
+            <div class="comment-list" id="clist-${pi}-${ti}"></div>
+            <div class="comment-input-row">
+              <textarea id="cinput-${pi}-${ti}" placeholder="写评论…" rows="1"
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendComment(${pi},${ti})}"></textarea>
+              <button class="btn sm primary comment-send-btn" onclick="sendComment(${pi},${ti})">发送</button>
+            </div>
+          </div>
+        </div>`;
+      grid.appendChild(row);
+
+      // 监听图片
+      if (isAdmin) loadImages(pi, ti);
+      // 监听评论
+      listenComments(pi, ti);
+    });
+  });
+}
+
+// ═══════════════════════════════════════
+// 进度
+// ═══════════════════════════════════════
+function applyState(data) {
+  let total = 0;
+  PHASES.forEach((phase, pi) => {
+    let n = 0;
+    phase.tasks.forEach((_, ti) => {
+      const done = !!(data[`${pi}_${ti}`]);
+      const row = document.getElementById(`row-${pi}-${ti}`);
+      const box = document.getElementById(`chk-${pi}-${ti}`);
+      if (row) row.classList.toggle('done', done);
+      if (box) box.classList.toggle('on', done);
+      if (done) { total++; n++; }
+    });
+    const pp = document.getElementById(`pp-${pi}`);
+    if (pp) pp.textContent = `${n} / ${phase.tasks.length}`;
+  });
+  const pct = Math.round(total / TOTAL * 100);
+  document.getElementById('hProgBar').style.width = pct + '%';
+  document.getElementById('hProgTxt').textContent = `${total} / ${TOTAL} 完成`;
+  document.getElementById('doneBanner').style.display = total === TOTAL ? 'flex' : 'none';
+}
+
+function toggleTask(pi, ti) {
+  if (currentMode !== 'admin') return;
+  const ref = db.ref('state/' + sanitize(currentClient) + '/' + pi + '_' + ti);
+  ref.once('value').then(s => ref.set(!s.val()));
+}
+
+// ═══════════════════════════════════════
+// 图片上传
+// ═══════════════════════════════════════
+function uploadImages(pi, ti, input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  const path = `images/${sanitize(currentClient)}/${pi}_${ti}`;
+  files.forEach(file => {
+    const ref = storage.ref(path + '/' + Date.now() + '_' + file.name);
+    ref.put(file).then(() => ref.getDownloadURL()).then(url => {
+      db.ref(`imgs/${sanitize(currentClient)}/${pi}_${ti}`).push({ url, t: Date.now() });
+    }).catch(e => alert('上传失败：' + e.message));
+  });
+  input.value = '';
+}
+
+function loadImages(pi, ti) {
+  db.ref(`imgs/${sanitize(currentClient)}/${pi}_${ti}`).on('value', snap => {
+    const data = snap.val() || {};
+    const list = document.getElementById(`imglist-${pi}-${ti}`);
+    if (!list) return;
+    list.innerHTML = '';
+    Object.values(data).sort((a,b)=>a.t-b.t).forEach(item => {
+      const img = document.createElement('img');
+      img.className = 'img-thumb';
+      img.src = item.url;
+      img.onclick = () => openLightbox(item.url);
+      list.appendChild(img);
+    });
+  });
+}
+
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
+}
+
+// ═══════════════════════════════════════
+// 评论
+// ═══════════════════════════════════════
+function listenComments(pi, ti) {
+  const isAdmin = currentMode === 'admin';
+  db.ref(`comments/${sanitize(currentClient)}/${pi}_${ti}`).on('value', snap => {
+    const data = snap.val() || {};
+    const list = document.getElementById(`clist-${pi}-${ti}`);
+    const toggle = document.getElementById(`ctoggle-txt-${pi}-${ti}`);
+    if (!list) return;
+
+    // 过滤：客户端看不到 internal 评论
+    let items = Object.values(data).sort((a,b)=>a.t-b.t);
+    if (!isAdmin) items = items.filter(c => c.type !== 'internal');
+
+    const visibleCount = items.length;
+    if (toggle) toggle.textContent = visibleCount ? `${visibleCount} 条评论` : '写评论';
+
+    list.innerHTML = '';
+    if (!items.length) {
+      list.innerHTML = '<p class="no-comments">暂无评论</p>';
+      return;
+    }
+    items.forEach(c => {
+      const el = document.createElement('div');
+      el.className = 'comment-item';
+      const typeLabel = c.type === 'internal' ? '内部备注' : '客户评论';
+      const badgeClass = c.type === 'internal' ? 'badge-internal' : 'badge-customer';
+      const time = new Date(c.t).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      el.innerHTML = `
+        <div class="comment-meta">
+          <span class="comment-author-badge ${badgeClass}">${typeLabel}</span>
+          <span class="comment-time">${time}</span>
+        </div>
+        <div class="comment-text">${escHtml(c.text)}</div>`;
+      list.appendChild(el);
+    });
+  });
+}
+
+function toggleComments(pi, ti) {
+  const body = document.getElementById(`cbody-${pi}-${ti}`);
+  const btn = document.getElementById(`ctoggle-${pi}-${ti}`);
+  const isOpen = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', isOpen);
+  btn.classList.toggle('open', !isOpen);
+  if (!isOpen) {
+    setTimeout(() => document.getElementById(`cinput-${pi}-${ti}`)?.focus(), 50);
+  }
+}
+
+function sendComment(pi, ti) {
+  const input = document.getElementById(`cinput-${pi}-${ti}`);
+  const text = input.value.trim();
+  if (!text) return;
+  const type = currentMode === 'admin' ? 'internal' : 'customer';
+  db.ref(`comments/${sanitize(currentClient)}/${pi}_${ti}`).push({
+    text, type, t: Date.now()
+  }).then(() => { input.value = ''; });
+}
+
+// ═══════════════════════════════════════
+// 删除客户
+// ═══════════════════════════════════════
+function deleteClient() {
+  if (!confirm(`确认删除「${currentClient}」的所有数据？不可恢复。`)) return;
+  const key = sanitize(currentClient);
+  Promise.all([
+    clientsRef.child(key).remove(),
+    db.ref('state/'+key).remove(),
+    db.ref('comments/'+key).remove(),
+    db.ref('imgs/'+key).remove()
+  ]).then(() => { hide('trackerPage'); show('adminHome'); })
+    .catch(e => alert('删除失败：'+e.message));
+}
+
+// ═══════════════════════════════════════
+// 工具函数
+// ═══════════════════════════════════════
+function sanitize(n){ return n.replace(/[.#$\/\[\]\s]/g,'_'); }
+function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function show(id){ document.getElementById(id).style.display = id==='loginPage'||id==='adminHome'?'':''; document.getElementById(id).classList.remove('hidden'); }
+function hide(id){ document.getElementById(id).style.display='none'; }
+function toggle(id, vis){ document.getElementById(id).classList.toggle('hidden',!vis); }
+</script>
+</body>
+</html>
